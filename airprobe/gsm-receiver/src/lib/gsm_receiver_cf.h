@@ -67,6 +67,8 @@ class gsm_receiver_cf : public gr_block
         TM_SPEECH_EFR,
     } d_tch_mode;
 
+		int brutal_sample_counter;
+
     /**@name Configuration of the receiver */
     //@{
     const int d_OSR; ///< oversampling ratio
@@ -104,6 +106,11 @@ class gsm_receiver_cf : public gr_block
     /**@name Internal state of the gsm receiver */
     //@{
     enum states {
+      brutal, //Misiek's test state
+      brutal_init, //Misiek's test state
+      brutal_consume, //Misiek's test state
+			brutal_burst_read,//Misiek's test state
+			brutal_synchronized,//Misiek's test state
       first_fcch_search, next_fcch_search, sch_search, // synchronization search part
       synchronized // receiver is synchronized in this state
     } d_state;

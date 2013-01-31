@@ -55,8 +55,9 @@ void decrypt(const unsigned char * burst_binary, byte * KC, unsigned char * decr
   if(KC[0] == 0 && KC[1] == 0 && KC[2] == 0 && KC[3] == 0 &
      KC[4] == 0 && KC[5] == 0 && KC[6] == 0 && KC[7] == 0) {
     for (int i = 0; i < 148; i++) {
-      decrypted_data[i] = burst_binary[i];
+      decrypted_data[i] = burst_binary[i];   
     }
+    printf("No decryption.\n");
     return;
   }
 
@@ -140,6 +141,7 @@ void gsm_receiver_cf::read_configuration(std::string configuration)
 
   /* get timeslot */
   int ts = atoi(configuration.c_str());
+  printf("ts=%d",ts);
   if (ts < 0 || ts > 7) {
     printf("  Invalid TS: %d\n", ts);
     return;
@@ -147,7 +149,22 @@ void gsm_receiver_cf::read_configuration(std::string configuration)
 
   printf("  Configuration TS: %d\n", ts);
 
+//Misiek
   d_tch_mode = TM_NONE;
+  d_gs_ctx.ts_ctx[0].type = TST_FCCH_SCH_BCCH_CCCH_SDCCH4;
+  d_gs_ctx.ts_ctx[1].type = TST_SDCCH8;//Misiek
+//	d_gs_ctx.ts_ctx[1].type	= TST_FCCH_SCH_BCCH_CCCH_SDCCH4;
+  for(int i = 2; i<=8 ;i++){
+    //d_gs_ctx.ts_ctx[i].type = TST_TCHF;
+  }
+  if((char)configuration[2] == 'E'){
+    d_tch_mode = TM_SPEECH_EFR;
+  }else{
+    d_tch_mode = TM_SPEECH_FR;
+  }
+//Misiek
+
+  /*
   if((char)configuration[1] == 'C')
     d_gs_ctx.ts_ctx[ts].type = TST_FCCH_SCH_BCCH_CCCH_SDCCH4;
   else if((char)configuration[1] == 'B')
@@ -163,14 +180,14 @@ void gsm_receiver_cf::read_configuration(std::string configuration)
   } else {
     printf("  Invalid configuration: %c\n", (char)configuration[1]);
     return;
-  }
+  }*///Misiek
 
   /* any other timeslot than 0: turn TS0 off */
-  if(ts != 0) {
+  /*if(ts != 0) {
     d_gs_ctx.ts_ctx[0].type = TST_OFF;
     d_trace_sch = false;
     printf("  TS0 is turned off\n");
-  }
+  }*///Misiek
 }
 
 void gsm_receiver_cf::process_normal_burst(burst_counter burst_nr, const unsigned char * burst_binary, bool first_burst)
@@ -179,11 +196,20 @@ void gsm_receiver_cf::process_normal_burst(burst_counter burst_nr, const unsigne
   float decrypted_data_float[148];
   unsigned char * voice_frame;
   int ts = burst_nr.get_timeslot_nr();
+  printf("t1 = %d, t2 = %d, t3 = %d, timeslot_nr = %d\n",burst_nr.get_t1(),burst_nr.get_t2(),burst_nr.get_t3(),burst_nr.get_timeslot_nr());
+  printf("Burst Processing...\n");  
+  printf("%d\n",*burst_binary);  
+  if(first_burst){
+    printf("First burst: TRUE\n");
+  }else{
+    printf("First burst: FALSE\n");
+  }
 
   /* no processing if turned off*/
-  if (d_gs_ctx.ts_ctx[ts].type == TST_OFF)
+  if (d_gs_ctx.ts_ctx[ts].type == TST_OFF){
+    printf("d_gs_ctx.ts_ctx[%d].type == TST_OFF\n",ts);
     return;
-
+  }
   /* handle traffic timeslots */
 #if 0
   /* always try to decrypt and decode traffic in TS 1...7 */
@@ -192,8 +218,10 @@ void gsm_receiver_cf::process_normal_burst(burst_counter burst_nr, const unsigne
 #else
   if (d_gs_ctx.ts_ctx[ts].type == TST_TCHF) {
 #endif
+    printf("d_gs_ctx.ts_ctx[ts].type == TST_TCHF\n");
     decrypt(burst_binary, d_KC, decrypted_data, burst_nr.get_frame_nr_mod());
 
+    printf("burst_nr.get_t2() == %d, ts = %d\n",burst_nr.get_t2(),ts);
     if (burst_nr.get_t2() == 12 || burst_nr.get_t2() == 25) { /* SACCH of Full Rate TCH */
       if (ts % 2 == 0) /* SACH position and start depends on the timeslot */
         first_burst = (burst_nr.get_frame_nr() % 104) == (12 + 26 * (ts / 2));
@@ -204,25 +232,34 @@ void gsm_receiver_cf::process_normal_burst(burst_counter burst_nr, const unsigne
 #endif
       GS_process(&d_gs_ctx, TIMESLOT0 + ts, NORMAL, &decrypted_data[3], burst_nr.get_frame_nr(), first_burst);
     } else {
+      ///printf("else\n");
       int i;
-      for (i = 0; i< 148; i++)
-	decrypted_data_float[i] = decrypted_data[i];
-
+      for (i = 0; i< 148; i++){
+    	decrypted_data_float[i] = decrypted_data[i];
+      }
       GSM::Time time(burst_nr.get_frame_nr(), ts);
       GSM::RxBurst rxbrst(decrypted_data_float, time);
       if (ts - TIMESLOT1 >= 0 && ts - TIMESLOT1 < N_TCH_DECODER) {
-	if ( d_tch_decoder[ts - TIMESLOT1]->processBurst( rxbrst ) == true)
-	  fwrite(d_tch_decoder[ts - TIMESLOT1]->get_voice_frame(), 1 , d_tch_decoder[ts - TIMESLOT1]->get_voice_frame_length(), d_speech_file);
-	else if(rxbrst.Hl() || rxbrst.Hu()) {
-	  /* Stolen bits are set, might be FACCH */
-	  GS_process(&d_gs_ctx, TIMESLOT0 + ts, NORMAL, &decrypted_data[3], burst_nr.get_frame_nr(), first_burst);
+        ///printf("ts - TIMESLOT1 >= 0 && ts - TIMESLOT1 < N_TCH_DECODER\n");
+	    if ( d_tch_decoder[ts - TIMESLOT1]->processBurst( rxbrst ) == true){
+          ///printf(" d_tch_decoder[ts - TIMESLOT1]->processBurst( rxbrst ) == true\n");
+	      fwrite(d_tch_decoder[ts - TIMESLOT1]->get_voice_frame(), 1 , d_tch_decoder[ts - TIMESLOT1]->get_voice_frame_length(), d_speech_file);
+        }else if(rxbrst.Hl() || rxbrst.Hu()) {
+          ///printf("rxbrst.Hl() || rxbrst.Hu()\n");
+    	  /* Stolen bits are set, might be FACCH */
+	      GS_process(&d_gs_ctx, TIMESLOT0 + ts, NORMAL, &decrypted_data[3], burst_nr.get_frame_nr(), first_burst);
+        }else{
+            ///printf("None case\n");
         }
-      }
+      }else{
+        ///printf(" NOT ts - TIMESLOT1 >= 0 && ts - TIMESLOT1 < N_TCH_DECODER\n");
+      }      
     }
   }
 
   /* handle SDCCH/8 timeslots */
   if (d_gs_ctx.ts_ctx[ts].type == TST_SDCCH8) {
+    ///printf("d_gs_ctx.ts_ctx[ts].type == TST_SDCCH8\n");
     decrypt(burst_binary, d_KC, decrypted_data, burst_nr.get_frame_nr_mod());
     #if 1 /* dump cipher, plain and keystream bits */
     dump_bits(burst_binary, decrypted_data, burst_nr, first_burst);
@@ -231,9 +268,15 @@ void gsm_receiver_cf::process_normal_burst(burst_counter burst_nr, const unsigne
   }
 
   /* TS0 is special (TODO) */
-  if (ts == 0) {
+//  if (ts == 0) {//Misiek
+  if (ts == 100) {//Misiek
+    ///printf("ts == 0 (%d)\n",ts);
+    /*for(int ii=0;ii<sizeof(decrypted_data);ii++){
+      printf("%d\n",decrypted_data[ii]);
+    }*/
     memcpy(decrypted_data, burst_binary, sizeof(decrypted_data));
     if (d_gs_ctx.ts_ctx[ts].type == TST_FCCH_SCH_BCCH_CCCH_SDCCH4) {
+      ///printf("d_gs_ctx.ts_ctx[ts].type == TST_FCCH_SCH_BCCH_CCCH_SDCCH4\n");
       if (SDCCH_SACCH_4_MAP[burst_nr.get_frame_nr() % 51] != 0) { /* SDCCH/4 or SACCH/4 */
         decrypt(burst_binary, d_KC, decrypted_data, burst_nr.get_frame_nr_mod());
         #if 1 /* dump cipher, plain and keystream bits */
@@ -241,6 +284,10 @@ void gsm_receiver_cf::process_normal_burst(burst_counter burst_nr, const unsigne
         #endif
       }
     }
+    for(int ii=0;ii<sizeof(decrypted_data);ii++){
+      ///printf("%d",decrypted_data[ii]);
+    }
+    ///printf("\n");
     GS_process(&d_gs_ctx, TIMESLOT0 + ts, NORMAL, &decrypted_data[3], burst_nr.get_frame_nr(), first_burst);
   }
 
@@ -254,6 +301,9 @@ void gsm_receiver_cf::configure_receiver()
   /* configure TS0, TS0 is special (TODO)  */
 
   d_channel_conf.set_multiframe_type(TIMESLOT0, multiframe_51);
+
+  d_channel_conf.set_burst_types(TIMESLOT0, BCCH_FRAMES, BCCH_FIRST, sizeof(BCCH_FRAMES) / sizeof(unsigned), normal_burst);
+
   d_channel_conf.set_burst_types(TIMESLOT0, TEST_CCH_FRAMES, TEST_CCH_FIRST, sizeof(TEST_CCH_FRAMES) / sizeof(unsigned), normal_burst);
   /* FCCH bursts */
   d_channel_conf.set_burst_types(TIMESLOT0, FCCH_FRAMES, sizeof(FCCH_FRAMES) / sizeof(unsigned), fcch_burst);
@@ -262,7 +312,9 @@ void gsm_receiver_cf::configure_receiver()
 
   /* configure TS1...TS7 */
 
+  ///printf("d_gs_ctx.ts_ctx[0].type=%d\n",d_gs_ctx.ts_ctx[0].type);
   for (ts = TIMESLOT1; ts < TIMESLOT7; ts++) {
+    ///printf("d_gs_ctx.ts_ctx[%d].type=%d\n",ts,d_gs_ctx.ts_ctx[ts].type);
     if (d_gs_ctx.ts_ctx[ts].type == TST_TCHF) {
       d_channel_conf.set_multiframe_type(ts, multiframe_26);
       d_channel_conf.set_burst_types(ts, TRAFFIC_CHANNEL_F, sizeof(TRAFFIC_CHANNEL_F) / sizeof(unsigned), dummy_or_normal);
@@ -276,6 +328,9 @@ void gsm_receiver_cf::configure_receiver()
       }
     }
     else if (d_gs_ctx.ts_ctx[ts].type == TST_SDCCH8) {
+      d_channel_conf.set_multiframe_type(ts, multiframe_51);
+      d_channel_conf.set_burst_types(ts, SDCCH_SACCH_8_FRAMES, SDCCH_SACCH_8_FIRST, sizeof(SDCCH_SACCH_8_FRAMES) / sizeof(unsigned), dummy_or_normal);  
+    }else if (d_gs_ctx.ts_ctx[ts].type == TST_FCCH_SCH_BCCH_CCCH_SDCCH4) {
       d_channel_conf.set_multiframe_type(ts, multiframe_51);
       d_channel_conf.set_burst_types(ts, SDCCH_SACCH_8_FRAMES, SDCCH_SACCH_8_FIRST, sizeof(SDCCH_SACCH_8_FRAMES) / sizeof(unsigned), dummy_or_normal);  
     }
@@ -312,10 +367,12 @@ gsm_receiver_cf::gsm_receiver_cf(gr_feval_dd *tuner, gr_feval_dd *synchronizer, 
     d_counter(0),
     d_fcch_start_pos(0),
     d_freq_offset(0),
-    d_state(first_fcch_search),
+    d_state(first_fcch_search),//Misiek
+//    d_state(brutal_init),
     d_burst_nr(osr),
     d_failed_sch(0),
-    d_trace_sch(true)
+    d_trace_sch(true),
+		brutal_sample_counter(0)
 {
   const unsigned char amr_nb_magic[6] = { 0x23, 0x21, 0x41, 0x4d, 0x52, 0x0a };
   int i;
@@ -407,9 +464,170 @@ gsm_receiver_cf::general_work(int noutput_items,
   //probably the gsm receiver will be changed into sink so this variable won't be necessary
 
   switch (d_state) {
+
+
+    case 	brutal_init:
+			d_freq_offset = -3992.543945;      
+			set_frequency(7777777); 
+			d_burst_nr.set(322, 4,25, 0);      
+			d_state = brutal_consume;
+			
+//      d_state = first_fcch_search;
+      
+			break;
+
+    case brutal_consume:
+			///printf("[%7d] input[0] = (%11.6f,%11.6f)\n",brutal_sample_counter++,input[0].real(),input[0].imag());
+			consume_each(1);
+			if(brutal_sample_counter > 89278){
+				d_state = brutal_synchronized;
+			}
+      break;
+
+		case brutal_burst_read:
+						
+			break;
+
+		case brutal_synchronized: {
+        ///printf("SYNCHRONIZED\n");
+        ///printf("d_counter = %d\n",d_counter);
+        ///printf("input[0] = (%11.6f,%11.6f)\n",input[0].real(),input[0].imag());
+        vector_complex channel_imp_resp(CHAN_IMP_RESP_LENGTH*d_OSR);
+        int burst_start;
+        int offset = 0;
+        int to_consume = 0;
+        unsigned char output_binary[BURST_SIZE];
+
+        ///printf("t1=%d ",d_burst_nr.get_t1());
+        ///printf("t2=%d ",d_burst_nr.get_t2());
+        ///printf("t3=%d ",d_burst_nr.get_t3());
+        ///printf("timeslot_nr=%d ",d_burst_nr.get_timeslot_nr());
+        ///printf("get_frame_nr=%f ",d_burst_nr.get_frame_nr());
+        ///printf("get_frame_nr_mod=%f ",d_burst_nr.get_frame_nr_mod());
+        ///printf("offset_integer=%f\n",d_burst_nr.get_offset());
+        burst_type b_type = rach_burst;        
+        bool first_burst = false;
+        if(first_burst){
+            ///printf("first got\n");
+        }else{
+            ///printf("not first got\n");
+        }   
+
+        switch (b_type) {
+          
+          case normal_burst:                                                                  //if it's normal burst
+            ///printf("burst type = normal_burst\n");
+            burst_start = get_norm_chan_imp_resp(input, &channel_imp_resp[0], 6); //get channel impulse response for given training sequence number - d_bcc
+            detect_burst(input, &channel_imp_resp[0], burst_start, output_binary);            //MLSE detection of bits
+            process_normal_burst(d_burst_nr, output_binary, first_burst); //TODO: this shouldn't be here - remove it when gsm receiver's interface will be ready
+            break;
+
+          case dummy_or_normal: {
+              ///printf("burst type = normal or dummy_burst\n");
+              burst_start = get_norm_chan_imp_resp(input, &channel_imp_resp[0], TS_DUMMY);
+              detect_burst(input, &channel_imp_resp[0], burst_start, output_binary);
+              int different_bits = 0;
+              /*std::vector<unsigned char> v(20);
+              std::vector<unsigned char>::iterator it;
+              it = std::set_difference(output_binary + TRAIN_POS, output_binary + TRAIN_POS + 16, &train_seq[TS_DUMMY][5], &train_seq[TS_DUMMY][21], v.begin()); //Misiek: using set difference seems not right. Changed to hamming distance
+              int different_bits = (it - v.begin());*/
+    
+              for(int i=0;i<=16;i++){
+                different_bits += output_binary[TRAIN_POS+i] ^ train_seq[TS_DUMMY][5+i];
+              }
+
+              for(int i=0;i<=16;i++){
+                ///printf("output_binary[%2d]=%2d, train_seq[%2d][%2d]=%2d\n",TRAIN_POS+i,output_binary[TRAIN_POS+i],TS_DUMMY,5+i,train_seq[TS_DUMMY][5+i]);
+              }
+             
+              ///printf("different bits = %d\n",different_bits);
+
+              if (different_bits > 2) {//Misiek
+                ///printf("========alternativeBLE\n");
+                burst_start = get_norm_chan_imp_resp(input, &channel_imp_resp[0], d_bcc);
+                detect_burst(input, &channel_imp_resp[0], burst_start, output_binary);
+                different_bits = 0;
+                for(int i=0;i<=16;i++){
+                  different_bits += output_binary[TRAIN_POS+i] ^ train_seq[d_bcc][5+i];
+                }
+
+                for(int i=0;i<=16;i++){
+                  ///printf("==output_binary[%2d]=%2d, train_seq[%2d][%2d]=%2d\n",TRAIN_POS+i,output_binary[TRAIN_POS+i],d_bcc,5+i,train_seq[d_bcc][5+i]);
+                }
+             
+                ///printf("==different bits = %d\n",different_bits);
+
+
+                ///printf("output[0-2] = {%d,%d,%d}\n",output_binary[0], output_binary[1], output_binary[2]);
+                if (!output_binary[0] && !output_binary[1] && !output_binary[2]) {
+                  ///printf("!output_binary[0] && !output_binary[1] && !output_binary[2]\n");
+
+                  for(int i=0;i<3;i++){
+                    printf("%d, ",output_binary[i]);
+                  }
+                  printf("\n");
+
+                  for(int i=3;i<60;i++){
+                    printf("%d, ",output_binary[i]);
+                  }
+                  printf("\n");
+
+                  for(int i=60;i<61;i++){
+                    printf("%d, ",output_binary[i]);
+                  }
+                  printf("\n");
+                  for(int i=61;i<87;i++){
+                    printf("%d, ",output_binary[i]);
+                  }
+                  printf("\n");
+                  for(int i=87;i<88;i++){
+                    printf("%d, ",output_binary[i]);
+                  }
+                  printf("\n");
+                  for(int i=88;i<145;i++){
+                    printf("%d, ",output_binary[i]);
+                  }
+                  printf("\n");
+                  for(int i=145;i<148;i++){
+                    printf("%d, ",output_binary[i]);
+                  }
+                  printf("\n");
+
+
+                  process_normal_burst(d_burst_nr, output_binary, first_burst); //TODO: this shouldn't be here - remove it when gsm receiver's interface will be ready
+                }else{
+                  ///printf("NOT !output_binary[0] && !output_binary[1] && !output_binary[2]\n");    
+                } 
+              }else{
+								///printf("Apears Dummy\n");    
+							}
+            }
+            break;
+          case dummy:                                                         //if it's dummy
+            ///printf("burst type = dummy_burst\n");
+            burst_start = get_norm_chan_imp_resp(input, &channel_imp_resp[0], TS_DUMMY); //read dummy
+            detect_burst(input, &channel_imp_resp[0], burst_start, output_binary);   // but as far as I know it's pointless
+            break;
+          case empty:   //if it's empty burst
+            ///printf("burst type = empty\n");
+            break;      //do nothing
+        }
+
+        d_burst_nr++;   //go to next burst
+
+        to_consume += TS_BITS * d_OSR + d_burst_nr.get_offset();  //consume samples of the burst up to next guard period
+        //and add offset which is introduced by
+        //0.25 fractional part of a guard period
+        //burst_number computes this offset
+        //but choice of this class to do this was random
+        consume_each(to_consume);
+      }
+      break;
+
       //bootstrapping
     case first_fcch_search:
       if (find_fcch_burst(input, nitems_items[0])) { //find frequency correction burst in the input buffer
+        printf("1Adjusting frequency, new frequency offset: %f\n", d_freq_offset);        
         set_frequency(d_freq_offset);                //if fcch search is successful set frequency offset
         //produced_out = 0;
         d_state = next_fcch_search;
@@ -423,6 +641,7 @@ gsm_receiver_cf::general_work(int noutput_items,
         float prev_freq_offset = d_freq_offset;        //before previous set_frequqency cause change
         if (find_fcch_burst(input, nitems_items[0])) {
           if (abs(prev_freq_offset - d_freq_offset) > FCCH_MAX_FREQ_OFFSET) {
+            printf("2Adjusting frequency, new frequency offset: %f\n", d_freq_offset);
             set_frequency(d_freq_offset);              //call set_frequncy only frequency offset change is greater than some value
           }
           //produced_out = 0;
@@ -433,8 +652,8 @@ gsm_receiver_cf::general_work(int noutput_items,
         }
         break;
       }
-
     case sch_search: {
+        ///printf("SCH Search\n");
         vector_complex channel_imp_resp(CHAN_IMP_RESP_LENGTH*d_OSR);
         int t1, t2, t3;
         int burst_start = 0;
@@ -443,12 +662,23 @@ gsm_receiver_cf::general_work(int noutput_items,
         if (reach_sch_burst(nitems_items[0])) {                              //wait for a SCH burst
           burst_start = get_sch_chan_imp_resp(input, &channel_imp_resp[0]); //get channel impulse response from it
           detect_burst(input, &channel_imp_resp[0], burst_start, output_binary); //detect bits using MLSE detection
+//          printf("output_binary = {");
+          for(int i=0;i<BURST_SIZE;i++){
+            //printf("output_binary[%d] = %d\n",i,output_binary[i]);
+          }
+//          printf("}\n");
           if (decode_sch(&output_binary[3], &t1, &t2, &t3, &d_ncc, &d_bcc) == 0) { //decode SCH burst
             if(d_trace_sch)
             {
               DCOUT("sch burst_start: " << burst_start);
               DCOUT("bcc: " << d_bcc << " ncc: " << d_ncc << " t1: " << t1 << " t2: " << t2 << " t3: " << t3);
             }
+            ///printf("t1=%d ",t1);
+            ///printf("t2=%d ",t2);
+            ///printf("t3=%d ",t3);
+            ///printf("d_ncc=%d ",d_ncc);
+            ///printf("d_bcc=%d\n",d_bcc);
+//            printf("d_burst_nr=%f\n",d_burst_nr);
             d_burst_nr.set(t1, t2, t3, 0);                                  //set counter of bursts value
 
             #if 0 /* Dieter: now done in constructor */
@@ -464,6 +694,8 @@ gsm_receiver_cf::general_work(int noutput_items,
             d_burst_nr++;
 
             consume_each(burst_start + BURST_SIZE * d_OSR);   //consume samples up to next guard period
+            ///printf("consuming %d+%d=%d samples \n",burst_start,BURST_SIZE * d_OSR,burst_start  + BURST_SIZE * d_OSR);
+            printf("going to SYNCHRONIZED\n");
             d_state = synchronized;
           } else {
             d_state = next_fcch_search;                       //if there is error in the sch burst go back to fcch search phase
@@ -475,37 +707,64 @@ gsm_receiver_cf::general_work(int noutput_items,
       }
       //in this state receiver is synchronized and it processes bursts according to burst type for given burst number
     case synchronized: {
+        ///printf("SYNCHRONIZED\n");
+        ///printf("d_counter = %d\n",d_counter);
+        ///printf("input[0] = (%11.6f,%11.6f)\n",input[0].real(),input[0].imag());
         vector_complex channel_imp_resp(CHAN_IMP_RESP_LENGTH*d_OSR);
         int burst_start;
         int offset = 0;
         int to_consume = 0;
         unsigned char output_binary[BURST_SIZE];
 
-        burst_type b_type = d_channel_conf.get_burst_type(d_burst_nr); //get burst type for given burst number
+        ///printf("t1=%d ",d_burst_nr.get_t1());
+        ///printf("t2=%d ",d_burst_nr.get_t2());
+        ///printf("t3=%d ",d_burst_nr.get_t3());
+        ///printf("timeslot_nr=%d ",d_burst_nr.get_timeslot_nr());
+        ///printf("get_frame_nr=%f ",d_burst_nr.get_frame_nr());
+        ///printf("get_frame_nr_mod=%f ",d_burst_nr.get_frame_nr_mod());
+        ///printf("offset_integer=%f\n",d_burst_nr.get_offset());
+        burst_type b_type = d_channel_conf.get_burst_type(d_burst_nr); //get burst type for given burst number        
         bool first_burst = d_channel_conf.get_first_burst(d_burst_nr); // first burst of four ?
+        if(first_burst){
+            ///printf("first got\n");
+        }else{
+            ///printf("not first got\n");
+        }   
 
         switch (b_type) {
           case fcch_burst: {                                                                    //if it's FCCH  burst
+              printf("burst type = fcch_burst\n");
               const unsigned first_sample = ceil((GUARD_PERIOD + 2 * TAIL_BITS) * d_OSR) + 1;
               const unsigned last_sample = first_sample + USEFUL_BITS * d_OSR - TAIL_BITS * d_OSR;
               double freq_offset = compute_freq_offset(input, first_sample, last_sample);       //extract frequency offset from it
 
               d_freq_offset_vals.push_front(freq_offset);
+		printf("single freq_offset = %f\n",freq_offset);
 
               if (d_freq_offset_vals.size() >= 10) {
-                double sum = std::accumulate(d_freq_offset_vals.begin(), d_freq_offset_vals.end(), 0);
+                  
+                   double sum = std::accumulate(d_freq_offset_vals.begin(), d_freq_offset_vals.end(), 0);
                 double mean_offset = sum / d_freq_offset_vals.size();                           //compute mean
                 d_freq_offset_vals.clear();
-                if (abs(mean_offset) > FCCH_MAX_FREQ_OFFSET) {
+                printf("abs(mean_offset) = %d, FCCH_MAX_FREQ_OFFSET = %d\n",abs(mean_offset),FCCH_MAX_FREQ_OFFSET);           
+              if (abs(mean_offset) > FCCH_MAX_FREQ_OFFSET) {
                   d_freq_offset -= mean_offset;                                                 //and adjust frequency if it have changed beyond
-                  set_frequency(d_freq_offset);                                                 //some limit
+                  //set_frequency(d_freq_offset);                                                 //some limit
                   DCOUT("mean_offset: " << mean_offset);
+                    if (abs(mean_offset) > 100*FCCH_MAX_FREQ_OFFSET) {        //Misiek
+                        d_state = first_fcch_search;
+                        printf("ROZSYNCHRONIZED \n");
+                    }
+                  printf("d_freq_offset: %f\n", d_freq_offset);
+                  printf("mean_offset: %f\n", mean_offset);
                   DCOUT("Adjusting frequency, new frequency offset: " << d_freq_offset << "\n");
+                  printf("Adjusting frequency, new frequency offset: %f\n", d_freq_offset);
                 }
               }
             }
             break;
           case sch_burst: {                                                                    //if it's SCH burst
+              printf("burst type = sch_burst\n");
               int t1, t2, t3, d_ncc, d_bcc;
               burst_start = get_sch_chan_imp_resp(input, &channel_imp_resp[0]);                //get channel impulse response
               detect_burst(input, &channel_imp_resp[0], burst_start, output_binary);           //MLSE detection of bits
@@ -518,6 +777,7 @@ gsm_receiver_cf::general_work(int noutput_items,
                   DCOUT("bcc: " << d_bcc << " ncc: " << d_ncc << " t1: " << t1 << " t2: " << t2 << " t3: " << t3);
                   DCOUT(offset);
                 }
+                printf("sch_OK\n");
                 to_consume += offset;                                                          //adjust with offset number of samples to be consumed
               } else {
                 d_failed_sch++;
@@ -525,35 +785,102 @@ gsm_receiver_cf::general_work(int noutput_items,
 //                   d_state = next_fcch_search;        //TODO: this isn't good, the receiver is going wild when it goes back to next_fcch_search from here
 //                   d_freq_offset_vals.clear();
                   DCOUT("many sch decoding errors");
+                    printf("many sch decoding errors\n");
                 }
               }
             }
             break;
 
           case normal_burst:                                                                  //if it's normal burst
+            printf("burst type = normal_burst\n");
             burst_start = get_norm_chan_imp_resp(input, &channel_imp_resp[0], d_bcc); //get channel impulse response for given training sequence number - d_bcc
             detect_burst(input, &channel_imp_resp[0], burst_start, output_binary);            //MLSE detection of bits
             process_normal_burst(d_burst_nr, output_binary, first_burst); //TODO: this shouldn't be here - remove it when gsm receiver's interface will be ready
             break;
 
           case dummy_or_normal: {
+              printf("burst type = normal or dummy_burst\n");
               burst_start = get_norm_chan_imp_resp(input, &channel_imp_resp[0], TS_DUMMY);
               detect_burst(input, &channel_imp_resp[0], burst_start, output_binary);
-
-              std::vector<unsigned char> v(20);
+              int different_bits = 0;
+              /*std::vector<unsigned char> v(20);
               std::vector<unsigned char>::iterator it;
-              it = std::set_difference(output_binary + TRAIN_POS, output_binary + TRAIN_POS + 16, &train_seq[TS_DUMMY][5], &train_seq[TS_DUMMY][21], v.begin());
-              int different_bits = (it - v.begin());
+              it = std::set_difference(output_binary + TRAIN_POS, output_binary + TRAIN_POS + 16, &train_seq[TS_DUMMY][5], &train_seq[TS_DUMMY][21], v.begin()); //Misiek: using set difference seems not right. Changed to hamming distance
+              int different_bits = (it - v.begin());*/
+    
+              for(int i=0;i<=16;i++){
+                different_bits += output_binary[TRAIN_POS+i] ^ train_seq[TS_DUMMY][5+i];
+              }
 
-              if (different_bits > 2) {
+              for(int i=0;i<=16;i++){
+                ///printf("output_binary[%2d]=%2d, train_seq[%2d][%2d]=%2d\n",TRAIN_POS+i,output_binary[TRAIN_POS+i],TS_DUMMY,5+i,train_seq[TS_DUMMY][5+i]);
+              }
+             
+              ///printf("different bits = %d\n",different_bits);
+
+              if (different_bits >= 2) {//Misiek
+                printf("========alternative\n");
                 burst_start = get_norm_chan_imp_resp(input, &channel_imp_resp[0], d_bcc);
                 detect_burst(input, &channel_imp_resp[0], burst_start, output_binary);
-                if (!output_binary[0] && !output_binary[1] && !output_binary[2]) {
-                  process_normal_burst(d_burst_nr, output_binary, first_burst); //TODO: this shouldn't be here - remove it when gsm receiver's interface will be ready
+                different_bits = 0;
+                for(int i=0;i<=16;i++){
+                  different_bits += output_binary[TRAIN_POS+i] ^ train_seq[d_bcc][5+i];
                 }
-              }
+
+                for(int i=0;i<=16;i++){
+                  ///printf("==output_binary[%2d]=%2d, train_seq[%2d][%2d]=%2d\n",TRAIN_POS+i,output_binary[TRAIN_POS+i],d_bcc,5+i,train_seq[d_bcc][5+i]);
+                }
+             
+                ///printf("==different bits = %d\n",different_bits);
+
+
+                ///printf("output[0-2] = {%d,%d,%d}\n",output_binary[0], output_binary[1], output_binary[2]);
+                if (!output_binary[0] && !output_binary[1] && !output_binary[2]) {
+                  ///printf("!output_binary[0] && !output_binary[1] && !output_binary[2]\n");
+
+                  for(int i=0;i<3;i++){
+                    printf("%d, ",output_binary[i]);
+                  }
+                  printf("\n");
+
+                  for(int i=3;i<60;i++){
+                    printf("%d, ",output_binary[i]);
+                  }
+                  printf("\n");
+
+                  for(int i=60;i<61;i++){
+                    printf("%d, ",output_binary[i]);
+                  }
+                  printf("\n");
+                  for(int i=61;i<87;i++){
+                    printf("%d, ",output_binary[i]);
+                  }
+                  printf("\n");
+                  for(int i=87;i<88;i++){
+                    printf("%d, ",output_binary[i]);
+                  }
+                  printf("\n");
+                  for(int i=88;i<145;i++){
+                    printf("%d, ",output_binary[i]);
+                  }
+                  printf("\n");
+                  for(int i=145;i<148;i++){
+                    printf("%d, ",output_binary[i   ]);
+                  }
+                  printf("\n");
+
+
+                  process_normal_burst(d_burst_nr, output_binary, first_burst); //TODO: this shouldn't be here - remove it when gsm receiver's interface will be ready
+                }else{
+                  ///printf("NOT !output_binary[0] && !output_binary[1] && !output_binary[2]\n");    
+                } 
+              }else{
+								printf("Apears Dummy\n");  
+							}
             }
+            break;
           case rach_burst:
+            printf("burst type = rach_burst\n");
             //implementation of this channel isn't possible in current gsm_receiver
             //it would take some realtime processing, counter of samples from USRP to
             //stay synchronized with this device and possibility to switch frequency from  uplink
@@ -561,10 +888,12 @@ gsm_receiver_cf::general_work(int noutput_items,
 
             break;
           case dummy:                                                         //if it's dummy
+            printf("burst type = dummy_burst\n");
             burst_start = get_norm_chan_imp_resp(input, &channel_imp_resp[0], TS_DUMMY); //read dummy
             detect_burst(input, &channel_imp_resp[0], burst_start, output_binary);   // but as far as I know it's pointless
             break;
           case empty:   //if it's empty burst
+            printf("burst type = empty\n");
             break;      //do nothing
         }
 
@@ -579,12 +908,13 @@ gsm_receiver_cf::general_work(int noutput_items,
       }
       break;
   }
-
+//  printf("Ending general_work\n");
   return produced_out;
 }
 
 bool gsm_receiver_cf::find_fcch_burst(const gr_complex *input, const int nitems)
 {
+  
   circular_buffer_float phase_diff_buffer(FCCH_HITS_NEEDED * d_OSR); //circular buffer used to scan throug signal to find
   //best match for FCCH burst
   float phase_diff = 0;
@@ -603,6 +933,8 @@ bool gsm_receiver_cf::find_fcch_burst(const gr_complex *input, const int nitems)
   bool result = false;
   circular_buffer_float::iterator buffer_iter;
 
+  ///printf("===Burst processing. d_counter= %d \tmiss_count %d, hit_count %d Nubmer of items (samples?): %d===\n",d_counter,miss_count,hit_count,nitems);
+
   /**@name Possible states of FCCH search algorithm*/
   //@{
   enum states {
@@ -610,7 +942,7 @@ bool gsm_receiver_cf::find_fcch_burst(const gr_complex *input, const int nitems)
     search,             ///< search for positive samples
     found_something,    ///< search for FCCH and the best position of it
     fcch_found,         ///< when FCCH was found
-    search_fail         ///< when there is no FCCH in the input vector
+    search_fail        ///< when there is no FCCH in the input vector
   } fcch_search_state;
   //@}
 
@@ -618,7 +950,6 @@ bool gsm_receiver_cf::find_fcch_burst(const gr_complex *input, const int nitems)
 
   while (!end) {
     switch (fcch_search_state) {
-
       case init: //initialize variables
         hit_count = 0;
         miss_count = 0;
@@ -626,26 +957,31 @@ bool gsm_receiver_cf::find_fcch_burst(const gr_complex *input, const int nitems)
         lowest_max_min_diff = 99999;
         phase_diff_buffer.clear();
         fcch_search_state = search;
-
+        //printf("Init\n");
         break;
 
       case search: // search for positive samples
         sample_number++;
-
+        //printf("SEAR Sample [%d]=\t(%f,\t%f)\t",sample_number,input[sample_number].real(),input[sample_number].imag());
         if (sample_number > nitems - FCCH_HITS_NEEDED * d_OSR) { //if it isn't possible to find FCCH because
           //there's too few samples left to look into,
           to_consume = sample_number;                            //don't do anything with those samples which are left
           //and consume only those which were checked
           fcch_search_state = search_fail;
+          printf("FAIL - too few samples left to look into sample_number - nitems = %d, FCCH_HITS_NEEDED * d_OSR = %d \n",sample_number - nitems, FCCH_HITS_NEEDED * d_OSR);
         } else {
           phase_diff = compute_phase_diff(input[sample_number], input[sample_number-1]);
-
+          //printf("phase_diff = >>> %f <<< ::: sample[%d] = (%f,%f), sample[%d] = (%f,%f) ", phase_diff,sample_number,input[sample_number].real(),input[sample_number].imag(),sample_number-1,input[sample_number-1].real(),input[sample_number-1].imag());
+          //printf("phase_diff = >1> %f <1<", phase_diff);
           if (phase_diff > 0) {                                 //if a positive phase difference was found
             to_consume = sample_number;
             fcch_search_state = found_something;                //switch to state in which searches for FCCH
+            //printf("goto found something\n");
           } else {
             fcch_search_state = search;
+            //printf("goto search\n");
           }
+
         }
 
         break;
@@ -653,46 +989,64 @@ bool gsm_receiver_cf::find_fcch_burst(const gr_complex *input, const int nitems)
       case found_something: {// search for FCCH and the best position of it
           if (phase_diff > 0) {
             hit_count++;       //positive phase differencies increases hits_count
+            //printf("hit\n");
           } else {
             miss_count++;      //negative increases miss_count
+            //printf("MISS\n");
           }
+          //printf(" hit count = %d, miss count = %d ",hit_count,miss_count);
 
           if ((miss_count >= FCCH_MAX_MISSES * d_OSR) && (hit_count <= FCCH_HITS_NEEDED * d_OSR)) {
             //if miss_count exceeds limit before hit_count
+            //printf("miss_count (%d) exceeds limit %d before hit_count (%d) %d. Going to init state\n",miss_count,FCCH_MAX_MISSES * d_OSR,hit_count,FCCH_HITS_NEEDED * d_OSR);
             fcch_search_state = init;       //go to init
             continue;
           } else if (((miss_count >= FCCH_MAX_MISSES * d_OSR) && (hit_count > FCCH_HITS_NEEDED * d_OSR)) || (hit_count > 2 * FCCH_HITS_NEEDED * d_OSR)) {
+            //printf("hit_count and miss_count exceeds limits, or hit count>%d => FCCH was found!!!!!!!!!.\n",2 * FCCH_HITS_NEEDED * d_OSR);
             //if hit_count and miss_count exceeds limit then FCCH was found
             fcch_search_state = fcch_found;
             continue;
           } else if ((miss_count < FCCH_MAX_MISSES * d_OSR) && (hit_count > FCCH_HITS_NEEDED * d_OSR)) {
+            //printf("hit_count exceeds limit before miss_count. COMPLICATED....\n");
             //find difference between minimal and maximal element in the buffer
             //for FCCH this value should be low
             //this part is searching for a region where this value is lowest
             min_phase_diff = * (min_element(phase_diff_buffer.begin(), phase_diff_buffer.end()));
             max_phase_diff = * (max_element(phase_diff_buffer.begin(), phase_diff_buffer.end()));
-
+            //printf("\tmin_phase_diff = %10.20f\tmax_phase_diff = %10.20f\tlowest_max_min_diff = %10.20f\n",min_phase_diff,max_phase_diff,lowest_max_min_diff);
+        
             if (lowest_max_min_diff > max_phase_diff - min_phase_diff) {
+              //printf("\tlowest_max_min_diff > max_phase_diff - min_phase_diff -> %10.20f > %10.20f \n",lowest_max_min_diff,max_phase_diff - min_phase_diff);
               lowest_max_min_diff = max_phase_diff - min_phase_diff;
-              start_pos = sample_number - FCCH_HITS_NEEDED * d_OSR - FCCH_MAX_MISSES * d_OSR; //store start pos
+             // printf("\t\t1new lowest_max_min_diff = %10.40f \n",lowest_max_min_diff);
+              start_pos = sample_number - FCCH_HITS_NEEDED * d_OSR;// - FCCH_MAX_MISSES * d_OSR; //store start pos //TODO: nie powinno byc bez  - FCCH_MAX_MISSES * d_OSR ????
+             // printf("\t\tstart_pos = sample number - FCCH_HITS_NEEDED * d_OSR - FCCH_MAX_MISSES * d_OSR = %d - %d * %d - %d * %d = %d \n",sample_number, FCCH_HITS_NEEDED, d_OSR, FCCH_MAX_MISSES, d_OSR, start_pos);
+              //printf("\t\td_counter = %d \n",d_counter);
               best_sum = 0;
-
+              int mycounter = 0;
               for (buffer_iter = phase_diff_buffer.begin();
                    buffer_iter != (phase_diff_buffer.end());
                    buffer_iter++) {
                 best_sum += *buffer_iter - (M_PI / 2) / d_OSR;   //store best value of phase offset sum
+                //printf("\t\t\t[%d] *buffer_iter = %f \tbest_sum = %f\n",mycounter,*buffer_iter,best_sum);
+                mycounter++;
               }
+            }else{
+              ///printf("\tlowest_max_min_diff <= max_phase_diff - min_phase_diff\n");
             }
+          } else {
+            //printf("None Case\n");
           }
-
           sample_number++;
+          //printf("STHF Sample [%d]=\t(%f,\t%f)\t",sample_number,input[sample_number].real(),input[sample_number].imag());
 
           if (sample_number >= nitems) {    //if there's no single sample left to check
             fcch_search_state = search_fail;//FCCH search failed
             continue;
           }
-
           phase_diff = compute_phase_diff(input[sample_number], input[sample_number-1]);
+          //printf("phase_diff = >>> %f <<< ::: sample[%d] = (%f,%f), sample[%d] = (%f,%f) ", phase_diff,sample_number,input[sample_number].real(),input[sample_number].imag(),sample_number-1,input[sample_number-1].real(),input[sample_number-1].imag());
+          //printf("phase_diff = >2> %f <2<", phase_diff);
           phase_diff_buffer.push_back(phase_diff);
           fcch_search_state = found_something;
         }
@@ -700,6 +1054,7 @@ bool gsm_receiver_cf::find_fcch_burst(const gr_complex *input, const int nitems)
 
       case fcch_found: {
           DCOUT("fcch found on position: " << d_counter + start_pos);
+          printf("fcch found on position: %d + %d = %d\n",d_counter, start_pos, d_counter + start_pos);
           to_consume = start_pos + FCCH_HITS_NEEDED * d_OSR + 1; //consume one FCCH burst
 
           d_fcch_start_pos = d_counter + start_pos;
@@ -709,6 +1064,7 @@ bool gsm_receiver_cf::find_fcch_burst(const gr_complex *input, const int nitems)
           double freq_offset = phase_offset * 1625000.0 / (12.0 * M_PI);
           d_freq_offset -= freq_offset;
           DCOUT("freq_offset: " << d_freq_offset);
+          printf("d_freq_offset: %f\n",  d_freq_offset);
 
           end = true;
           result = true;
@@ -724,7 +1080,7 @@ bool gsm_receiver_cf::find_fcch_burst(const gr_complex *input, const int nitems)
 
   d_counter += to_consume;
   consume_each(to_consume);
-
+  printf("RETURNING, d_counter = %d\n",d_counter);
   return result;
 }
 
@@ -745,7 +1101,9 @@ double gsm_receiver_cf::compute_freq_offset(const gr_complex * input, unsigned f
 
 void gsm_receiver_cf::set_frequency(double freq_offset)
 {
+  printf("---------------------------- USING TUNER -----------------------------------\n");
   d_tuner->calleval(freq_offset);
+//  printf("---------------------------- USED TUNER -----------------------------------\n");
 }
 
 inline float gsm_receiver_cf::compute_phase_diff(gr_complex val1, gr_complex val2)
@@ -760,27 +1118,36 @@ bool gsm_receiver_cf::reach_sch_burst(const int nitems)
   int to_consume = 0;
   bool result = false;
   unsigned sample_nr_near_sch_start = d_fcch_start_pos + (FRAME_BITS - SAFETY_MARGIN) * d_OSR;
-
+  ///printf("d_counter: %d\n",d_counter);
+  ///printf("Consuming %d+(%d-%d)*4 = %d bits\n",d_fcch_start_pos ,FRAME_BITS,SAFETY_MARGIN,sample_nr_near_sch_start);
   //consume samples until d_counter will be equal to sample_nr_near_sch_start
   if (d_counter < sample_nr_near_sch_start) {
+  ///printf("nitems: %d\n",nitems);
+  ///printf("d_counter < sample_nr_near_sch_start\n");
     if (d_counter + nitems >= sample_nr_near_sch_start) {
+      ///printf("d_counter + nitems >= sample_nr_near_sch_start\n");
       to_consume = sample_nr_near_sch_start - d_counter;
     } else {
+      ///printf("d_counter + nitems < sample_nr_near_sch_start\n");
       to_consume = nitems;
     }
+    ///printf("returning FALSE\n");
     result = false;
   } else {
     to_consume = 0;
+    ///printf("returning TRUE\n");
     result = true;
   }
 
   d_counter += to_consume;
   consume_each(to_consume);
+  ///printf("d_counter after: %d\n",d_counter);
   return result;
 }
 
 int gsm_receiver_cf::get_sch_chan_imp_resp(const gr_complex *input, gr_complex * chan_imp_resp)
 {
+  ///printf("get_sch_chan_imp_resp\n");
   vector_complex correlation_buffer;
   vector_float power_buffer;
   vector_float window_energy_buffer;
@@ -791,15 +1158,25 @@ int gsm_receiver_cf::get_sch_chan_imp_resp(const gr_complex *input, gr_complex *
   float max_correlation = 0;
   float energy = 0;
 
+  printf("SYNC_POS = %d, SYNC_SEARCH_RANGE = %d input[0] = (%11.6f, %11.6f)\n",SYNC_POS,SYNC_SEARCH_RANGE,input[0].real(),input[0].imag());
+
   for (int ii = SYNC_POS * d_OSR; ii < (SYNC_POS + SYNC_SEARCH_RANGE) *d_OSR; ii++) {
     gr_complex correlation = correlate_sequence(&d_sch_training_seq[5], N_SYNC_BITS - 10, &input[ii]);
     correlation_buffer.push_back(correlation);
     power_buffer.push_back(pow(abs(correlation), 2));
+    /*///printf("input[%3d]=(%11.6f, %11.6f) cor=(%11.6f, %11.6f) pow=%f\n",
+ii,
+input[ii].real(),
+input[ii].imag(),
+correlation.real(),
+correlation.imag(),
+pow(abs(correlation), 2));*/
   }
 
   //compute window energies
   vector_float::iterator iter = power_buffer.begin();
   bool loop_end = false;
+  int iii=0;
   while (iter != power_buffer.end()) {
     vector_float::iterator iter_ii = iter;
     energy = 0;
@@ -816,9 +1193,11 @@ int gsm_receiver_cf::get_sch_chan_imp_resp(const gr_complex *input, gr_complex *
     }
     iter++;
     window_energy_buffer.push_back(energy);
+    //printf("%d pushing back %f\n",iii++,energy);
   }
 
   strongest_window_nr = max_element(window_energy_buffer.begin(), window_energy_buffer.end()) - window_energy_buffer.begin();
+  printf("strongest_window_nr = %d\n",strongest_window_nr);
 //   d_channel_imp_resp.clear();
 
   max_correlation = 0;
@@ -831,13 +1210,24 @@ int gsm_receiver_cf::get_sch_chan_imp_resp(const gr_complex *input, gr_complex *
 //     d_channel_imp_resp.push_back(correlation);
     chan_imp_resp[ii] = correlation;
   }
+  ///printf("max_correlation = %f ",max_correlation);
+  ///printf("chan_imp_resp_center = %d\n",chan_imp_resp_center);
 
   burst_start = strongest_window_nr + chan_imp_resp_center - 48 * d_OSR - 2 * d_OSR + 2 + SYNC_POS * d_OSR;
+  ///printf("burst_start(%d)=strongest_window_nr(%d)+chan_imp_resp_center(%d)-48*d_OSR-2*d_OSR+2+SYNC_POS(%d)*d_OSR;\n",
+///burst_start,strongest_window_nr,chan_imp_resp_center,SYNC_POS);
   return burst_start;
 }
 
 void gsm_receiver_cf::detect_burst(const gr_complex * input, gr_complex * chan_imp_resp, int burst_start, unsigned char * output_binary)
 {
+  printf("detect_burst. input[0]=(%11.6f, %11.6f), chan_imp_resp[0]=(%11.6f, %11.6f), burst_start=%d\n",
+input[0].real(),
+input[0].imag(),
+chan_imp_resp[0].real(),
+chan_imp_resp[0].imag(),
+burst_start
+);
   float output[BURST_SIZE];
   gr_complex rhh_temp[CHAN_IMP_RESP_LENGTH*d_OSR];
   gr_complex rhh[CHAN_IMP_RESP_LENGTH];
@@ -851,6 +1241,14 @@ void gsm_receiver_cf::detect_burst(const gr_complex * input, gr_complex * chan_i
   }
 
   mafi(&input[burst_start], BURST_SIZE, chan_imp_resp, d_chan_imp_length*d_OSR, filtered_burst);
+  
+  for(int i=0;i<BURST_SIZE;i++){
+    //printf("input[%d]=(%11.6f,%11.6f)\n",burst_start+i,input[burst_start+i].real(),input[burst_start+i].imag());
+  }
+
+  for(int i=0;i<BURST_SIZE;i++){
+    //printf("filtered_burst[%d]=(%11.6f,%11.6f)\n",i,filtered_burst[i].real(),filtered_burst[i].imag());
+  }
 
   viterbi_detector(filtered_burst, BURST_SIZE, rhh, start_state, stop_states, 2, output);
 
@@ -869,6 +1267,8 @@ void gsm_receiver_cf::gmsk_mapper(const unsigned char * input, int nitems, gr_co
   int previous_symbol = 2 * input[0] - 1;
   gmsk_output[0] = start_point;
 
+  //printf("seq[0] = (%11.6f, %11.6f)\n",start_point.real(),start_point.imag());
+
   for (int i = 1; i < nitems; i++) {
     //change bits representation to NRZ
     current_symbol = 2 * input[i] - 1;
@@ -876,6 +1276,14 @@ void gsm_receiver_cf::gmsk_mapper(const unsigned char * input, int nitems, gr_co
     encoded_symbol = current_symbol * previous_symbol;
     //and do gmsk mapping
     gmsk_output[i] = j * gr_complex(encoded_symbol, 0.0) * gmsk_output[i-1];
+    /*printf("in[%2d]=%2d, cur_symb=%2d, enc_symb=%2d, seq[%2d] = (%11.6f, %11.6f)\n",
+i,
+input[i],
+current_symbol,
+encoded_symbol,
+i,
+gmsk_output[i].real(),
+gmsk_output[i].imag());*/
     previous_symbol = current_symbol;
   }
 }
@@ -883,15 +1291,24 @@ void gsm_receiver_cf::gmsk_mapper(const unsigned char * input, int nitems, gr_co
 //TODO consider use of some generalized function for correlation and placing it in a separate class  for signal processing
 gr_complex gsm_receiver_cf::correlate_sequence(const gr_complex * sequence, int length, const gr_complex * input)
 {
+ // printf("correlate sequence, length = %d\n",length);
   gr_complex result(0.0, 0.0);
   int sample_number = 0;
 
   for (int ii = 0; ii < length; ii++) {
     sample_number = (ii * d_OSR) ;
     result += sequence[ii] * conj(input[sample_number]);
+    /*printf("seq[%3d]=(%9.6f, %9.6f) ",ii,sequence[ii].real(),sequence[ii].imag());
+    //printf("conj(input[%3d])=(%11.6f, %11.6f) ",sample_number,(conj(input[sample_number])).real(),(conj(input[sample_number])).imag());
+    printf("input[%3d]=(%11.6f, %11.6f) ",sample_number,input[sample_number].real(),input[sample_number].imag());
+    printf("result+=(%11.6f, %11.6f) ",
+(sequence[ii] * conj(input[sample_number])).real(),
+(sequence[ii] * conj(input[sample_number])).imag());
+    printf("result=(%11.6f, %11.6f)\n",result.real(),result.imag());*/
   }
 
   result = result / gr_complex(length, 0);
+  //printf("RETURN=(%11.6f, %11.6f)\n",result.real(),result.imag());
   return result;
 }
 
@@ -900,10 +1317,17 @@ gr_complex gsm_receiver_cf::correlate_sequence(const gr_complex * sequence, int 
 inline void gsm_receiver_cf::autocorrelation(const gr_complex * input, gr_complex * out, int nitems)
 {
   int i, k;
+  for(i=0;i<nitems;i++){
+    //printf("input[%2d]=(%11.6f,%11.6f)\n",i,input[i].real(),input[i].imag());
+  }
   for (k = nitems - 1; k >= 0; k--) {
     out[k] = gr_complex(0, 0);
+    //printf("out[%2d]=(%11.6f,%11.6f)\n",k,out[k].real(),out[k].imag());
     for (i = k; i < nitems; i++) {
       out[k] += input[i] * conj(input[i-k]);
+      //printf("\tinput[%2d]=(%11.6f,%11.6f) ",i,input[i].real(),input[i].imag());
+      //printf("conj(input[%2d])=(%11.6f,%11.6f) ",i-k,conj(input[i-k]).real(),conj(input[i-k]).imag());
+      //printf("out[%2d]=(%11.6f,%11.6f)\n",k,out[k].real(),out[k].imag());
     }
   }
 }
@@ -932,6 +1356,7 @@ inline void gsm_receiver_cf::mafi(const gr_complex * input, int nitems, gr_compl
 //especially computations of strongest_window_nr
 int gsm_receiver_cf::get_norm_chan_imp_resp(const gr_complex *input, gr_complex * chan_imp_resp, int bcc)
 {
+  printf("get_norm_chan_imp_resp (bcc=%d)\n",bcc);
   vector_complex correlation_buffer;
   vector_float power_buffer;
   vector_float window_energy_buffer;
@@ -942,16 +1367,29 @@ int gsm_receiver_cf::get_norm_chan_imp_resp(const gr_complex *input, gr_complex 
   float max_correlation = 0;
   float energy = 0;
 
+  printf("TRAIN_POS = %d, GUARD_PERIOD = %f\n",TRAIN_POS,GUARD_PERIOD);
+
   int search_center = (int)((TRAIN_POS + GUARD_PERIOD) * d_OSR);
   int search_start_pos = search_center + 1;
-//   int search_start_pos = search_center -  d_chan_imp_length * d_OSR;
+  //int search_start_pos = search_center -  d_chan_imp_length * d_OSR;
   int search_stop_pos = search_center + d_chan_imp_length * d_OSR + 2 * d_OSR;
+	
+//	search_start_pos-=200;
+//	search_stop_pos+=200;
+
+  printf("search_center = %d, search_start_pos = %d, search_stop_pos = %d\n",search_center,search_start_pos,search_stop_pos);
 
   for (int ii = search_start_pos; ii < search_stop_pos; ii++) {
-    gr_complex correlation = correlate_sequence(&d_norm_training_seq[bcc][TRAIN_BEGINNING], N_TRAIN_BITS - 10, &input[ii]);
-
+    gr_complex correlation = correlate_sequence(&d_norm_training_seq[bcc][TRAIN_BEGINNING], N_TRAIN_BITS - 10, &input[ii]);//(...[][5],26-10,...)
     correlation_buffer.push_back(correlation);
     power_buffer.push_back(pow(abs(correlation), 2));
+ /*///printf("input[%3d]=(%11.6f, %11.6f) cor=(%11.6f, %11.6f) pow=%f\n",
+ii,
+input[ii].real(),
+input[ii].imag(),
+correlation.real(),
+correlation.imag(),
+pow(abs(correlation), 2));*/
   }
 
   //compute window energies
@@ -978,7 +1416,8 @@ int gsm_receiver_cf::get_norm_chan_imp_resp(const gr_complex *input, gr_complex 
   }
   //!why doesn't this work
   strongest_window_nr = max_element(window_energy_buffer.begin(), window_energy_buffer.end()) - window_energy_buffer.begin();
-  strongest_window_nr = 3; //! so I have to override it here
+  printf("strongest_window_nr = %d\n",strongest_window_nr);
+  //strongest_window_nr = 3; //! so I have to override it here //Misiek: no it works fine....
 
   max_correlation = 0;
   for (int ii = 0; ii < (d_chan_imp_length)*d_OSR; ii++) {
@@ -990,6 +1429,8 @@ int gsm_receiver_cf::get_norm_chan_imp_resp(const gr_complex *input, gr_complex 
 //     d_channel_imp_resp.push_back(correlation);
     chan_imp_resp[ii] = correlation;
   }
+  printf("max_correlation = %f ",max_correlation);
+  printf("chan_imp_resp_center = %d\n",chan_imp_resp_center);
   // We want to use the first sample of the impulseresponse, and the
   // corresponding samples of the received signal.
   // the variable sync_w should contain the beginning of the used part of
@@ -1004,7 +1445,7 @@ int gsm_receiver_cf::get_norm_chan_imp_resp(const gr_complex *input, gr_complex 
   burst_start -= 2 * d_OSR;
   burst_start += 2;
   //std::cout << " burst_start: " << burst_start << " center: " << ((float)(search_start_pos + strongest_window_nr + chan_imp_resp_center)) / d_OSR << " stronegest window nr: " <<  strongest_window_nr << "\n";
-
+  printf("burst_start(%d)\n",burst_start);
   return burst_start;
 }
 

@@ -162,17 +162,27 @@ class channel_configuration
     }
 
     void set_burst_types(int timeslot_nr, const unsigned mapping[], unsigned mapping_size, burst_type b_type) {
+      printf("set_burst_types_SMALLER\n");
       unsigned i;
       for (i = 0; i < mapping_size; i++) {
         d_timeslots_descriptions[timeslot_nr].set_burst_type(mapping[i], b_type);
+        printf("d_timeslots_descriptions[%d][%d]=%d\n",timeslot_nr,mapping[i],b_type);
       }
     }
 
     void set_burst_types(int timeslot_nr, const unsigned mapping[], const unsigned first_burst[], unsigned mapping_size, burst_type b_type) {
       unsigned i;
+      printf("set_burst_types_BIGGER\n");
       for (i = 0; i < mapping_size; i++) {
         d_timeslots_descriptions[timeslot_nr].set_burst_type(mapping[i], b_type);
+        printf("d_timeslots_descriptions[%d][%d]=%d\t",timeslot_nr,mapping[i],b_type);        
         d_timeslots_descriptions[timeslot_nr].set_first_burst(mapping[i], first_burst[i] != 0);
+        if(first_burst[i] != 0){
+            printf("first = true\n");        
+        }else{
+            printf("first = false\n");        
+        }
+        
       }
     }
 
