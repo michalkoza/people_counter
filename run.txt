@@ -37,4 +37,12 @@ Running the application knowing [chosen channel number]
 
 1.	go to people_counter/airpgobe/gsm-receiver/src/python
 2.	run:	
-	./gsm_receiveLucek.py -a [chosen channel number] -c "c0" > log
+	./gsm_receiveLucek.py -a [chosen channel number] -c "D" > log
+
+    Command options:
+    -a  sets GSM channel number
+    -c  (optional default = "D") sets TS1 configuration 
+        D for TST_SDCCH8, 
+        F for TST_FCCH_SCH_BCCH_CCCH_SDCCH4
+            
+
