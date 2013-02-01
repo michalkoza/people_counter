@@ -16,7 +16,7 @@ configuration=""
 frequency=900000000
 GOHOME=~/people_counter/airprobe/gsm-receiver/src/python/
 DATAPATH=~/people_counter/data
-UHDRECORDERPATH=uhd_rx_cfile.py
+UHDRECORDERPATH=uhd_rx_cfile
 USRPRECORDERPATH=my_usrp_rx_cfile.py
 MODULESLOT=A
 driver=uhd
@@ -80,7 +80,7 @@ if [ $driver == usrp ]; then
 	captureCommand+="-R $MODULESLOT "
 else
 	captureCommand="$UHDRECORDERPATH "
-	captureCommand+="--wire-format=sc16 -g $GAIN --scalar=1 "
+	captureCommand+="--wire-format=sc16 -g $GAIN " #--scalar=1 "
 fi
 
 	
