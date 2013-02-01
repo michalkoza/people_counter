@@ -1,0 +1,53 @@
+cdpeople_counter kick start for ubuntu
+Instalation process tested on clean Ubuntu 12.04 installation
+
+Instalation:
+
+1.	sudo apt-get install build-essential
+2	sudo apt-get install git
+
+3.	go to desired libosmocore installation folder	
+3a.	run:
+	git clone git://git.osmocom.org/libosmocore.git
+4.	cd libosmocore/
+5.	autoreconf -i
+6.	./configure
+7.	make
+8.	sudo make install
+
+9.	go to directory you want gnuradio installed
+
+10.	go to http://gnuradio.org/redmine/projects/gnuradio/wiki/InstallingGR
+	and get the http://www.sbrac.org/files/build-gnuradio script
+
+	or
+
+10.	run:	
+	wget http://www.sbrac.org/files/build-gnuradio 
+	chmod a+x ./build-gnuradio 
+	./build-gnuradio
+
+	(there may be some problems - however gnuradio can be installed also manually (see gnuradio home page)
+	It may be required to run sudo apt-get -f install, in order to fix some dependencies problems)
+
+11.	go to directory you want people_counter installed (e.g. cd ~)
+12.	run:	
+	git clone https://github.com/michalkoza/people_counter.git
+13. 	cd people_counter/airprobe/gsm-receiver
+14.	./bootstrap
+15.	./configure
+16.	make
+17. 	sudo make install	
+
+18.	download and extract http://www.runningserver.com/software/arfcncalc.tar
+19.	run:	
+	tar -xf arfcncalc.tar
+20. 	cd arfcncalc
+21.	rm *.o
+22.	make all
+23.	sudo make install
+
+24.	go to http://www.baudline.com/ and follow install instructions to install baudline - spectrum analyzer
+25.	Copy the "baudline" executable to a suitable place such as /usr/local/bin,
+	/usr/bin, /home/user_name/bin, your home directory, or leave it right where it
+	is.  After a "rehash" run "baudline" or "./baudline" if dot isn't in your path.

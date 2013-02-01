@@ -1,0 +1,39 @@
+Running people counter consists of two steps:
+A. 	Finding GSM downlink channel with strong signal.
+B. 	Running the application
+	
+First step is crucial - running on week or heavily jammed channel will result in inability to synchronize USRP with broadcasting BTS (at least 548 out of 552 samples of FCCH frame must be read successfully). Slow USB port (as it may happen in case of virtual machines (expecially VirtualBox)) or low RAM memory (below 1,5GB) can be a serious obstacle as well.
+
+Early version of the application was less sensitive to weak signals but it was using very old gnuradio version without the new UHD driver. The UHD driver seems to cause the sensitivity to signal strength but it is the only GnuRadio version having any community support.
+
+Finding GSM downlink channel with strong signal:
+
+1.	go to people_counter/freq_finding directory
+2.	run:	
+	./combo_new.sh -g 30 -t 1000 -m 'v' -k 'd' -d 10 -a 7
+
+	This command runs spectrum analyser and displays 1000ms of GSM traffic on channel 7 (center of the plot) and many 		neighbouring channels. Chanell numbers grow from right to left.
+	Each GSM channel is 200kHz wide thus channel 1 is about 1200 and channel 14 at about -1400
+	Command options:
+	-g 30 	sets GAIN=30
+	-t 1000	sets time to 1000ms
+	-m 'v'  sets mode to view (other unused options: r-record, rv-recrd and view)
+	-k 'd'	to choose d-downlink u-uplink
+	-a 7	sets GSM channel to 7 (936.4MHz) More info about GSM frequency assignment can be found at 
+	http://www.btsy.eu/czestotliwosci.html
+
+	The combo_new.sh script shoul be invoked for different channel numbers in order to determine possibly strong signal
+
+or
+
+	use gnuradio spectrum analyzer (however, the signal strength presentation is not so clear as using baudline)
+	testing some frequencies (for example 936.4MHz) 
+1. 	run:
+	uhd_fft -W -a type=usrp1 -f 941.4M -s 3M
+
+
+Running the application knowing [chosen channel number]
+
+1.	go to people_counter/airpgobe/gsm-receiver/src/py
+2.	run:	
+	./gsm_receiveLucek.py -a [chosen channel number] -c "c0" > log
