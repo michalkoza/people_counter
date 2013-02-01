@@ -134,7 +134,7 @@ void gsm_receiver_cf::read_configuration(std::string configuration)
 {
   printf("Configuration: '%s'\n", configuration.c_str());
 
-  char conf = 'D'
+  char conf = 'D';
 
   if ((char)configuration[0] == 0) {
     printf("No configuration set. Using defaults\n");
