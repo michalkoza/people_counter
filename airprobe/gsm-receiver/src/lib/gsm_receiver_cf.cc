@@ -134,60 +134,24 @@ void gsm_receiver_cf::read_configuration(std::string configuration)
 {
   printf("Configuration: '%s'\n", configuration.c_str());
 
+  char conf = 'D'
+
   if ((char)configuration[0] == 0) {
-    printf("  No configuration set.\n");
-    return;
+    printf("No configuration set. Using defaults\n");
+  }else{
+    conf = (char)configuration[0];
   }
 
-  /* get timeslot */
-  int ts = atoi(configuration.c_str());
-  printf("ts=%d",ts);
-  if (ts < 0 || ts > 7) {
-    printf("  Invalid TS: %d\n", ts);
-    return;
+  if(conf == 'D'){
+    d_gs_ctx.ts_ctx[1].type = TST_SDCCH8;
+    printf("TS1 configures as TST_SDCCH8\n");
+  }else if(conf == 'F'){
+    d_gs_ctx.ts_ctx[1].type	= TST_FCCH_SCH_BCCH_CCCH_SDCCH4;
+    printf("TS1 configures as TST_FCCH_SCH_BCCH_CCCH_SDCCH4\n");
   }
 
-  printf("  Configuration TS: %d\n", ts);
-
-//Misiek
   d_tch_mode = TM_NONE;
   d_gs_ctx.ts_ctx[0].type = TST_FCCH_SCH_BCCH_CCCH_SDCCH4;
-  d_gs_ctx.ts_ctx[1].type = TST_SDCCH8;//Misiek
-//	d_gs_ctx.ts_ctx[1].type	= TST_FCCH_SCH_BCCH_CCCH_SDCCH4;
-  for(int i = 2; i<=8 ;i++){
-    //d_gs_ctx.ts_ctx[i].type = TST_TCHF;
-  }
-  if((char)configuration[2] == 'E'){
-    d_tch_mode = TM_SPEECH_EFR;
-  }else{
-    d_tch_mode = TM_SPEECH_FR;
-  }
-//Misiek
-
-  /*
-  if((char)configuration[1] == 'C')
-    d_gs_ctx.ts_ctx[ts].type = TST_FCCH_SCH_BCCH_CCCH_SDCCH4;
-  else if((char)configuration[1] == 'B')
-    d_gs_ctx.ts_ctx[ts].type = TST_FCCH_SCH_BCCH_CCCH;
-  else if((char)configuration[1] == 'S')
-    d_gs_ctx.ts_ctx[ts].type = TST_SDCCH8;
-  else if((char)configuration[1] == 'T') {
-    d_gs_ctx.ts_ctx[ts].type = TST_TCHF;
-    if((char)configuration[2] == 'E')
-      d_tch_mode = TM_SPEECH_EFR;
-    else
-      d_tch_mode = TM_SPEECH_FR;
-  } else {
-    printf("  Invalid configuration: %c\n", (char)configuration[1]);
-    return;
-  }*///Misiek
-
-  /* any other timeslot than 0: turn TS0 off */
-  /*if(ts != 0) {
-    d_gs_ctx.ts_ctx[0].type = TST_OFF;
-    d_trace_sch = false;
-    printf("  TS0 is turned off\n");
-  }*///Misiek
 }
 
 void gsm_receiver_cf::process_normal_burst(burst_counter burst_nr, const unsigned char * burst_binary, bool first_burst)
@@ -968,7 +932,7 @@ bool gsm_receiver_cf::find_fcch_burst(const gr_complex *input, const int nitems)
           to_consume = sample_number;                            //don't do anything with those samples which are left
           //and consume only those which were checked
           fcch_search_state = search_fail;
-          printf("FAIL - too few samples left to look into sample_number - nitems = %d, FCCH_HITS_NEEDED * d_OSR = %d \n",sample_number - nitems, FCCH_HITS_NEEDED * d_OSR);
+          //printf("FAIL - too few samples left to look into sample_number - nitems = %d, FCCH_HITS_NEEDED * d_OSR = %d \n",sample_number - nitems, FCCH_HITS_NEEDED * d_OSR);
         } else {
           phase_diff = compute_phase_diff(input[sample_number], input[sample_number-1]);
           //printf("phase_diff = >>> %f <<< ::: sample[%d] = (%f,%f), sample[%d] = (%f,%f) ", phase_diff,sample_number,input[sample_number].real(),input[sample_number].imag(),sample_number-1,input[sample_number-1].real(),input[sample_number-1].imag());

@@ -30,10 +30,11 @@ or
 	testing some frequencies (for example 936.4MHz) 
 1. 	run:
 	uhd_fft -W -a type=usrp1 -f 941.4M -s 3M
+2.  in the gui press the Autoscale button
 
 
 Running the application knowing [chosen channel number]
 
-1.	go to people_counter/airpgobe/gsm-receiver/src/py
+1.	go to people_counter/airpgobe/gsm-receiver/src/python
 2.	run:	
 	./gsm_receiveLucek.py -a [chosen channel number] -c "c0" > log
