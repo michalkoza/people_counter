@@ -303,7 +303,7 @@ GS_process(GS_CTX *ctx, int ts, int type, const unsigned char *src, int fn, int 
 		}
 		//DEBUGF("OK TS %d, len %d\n", ts, len);
 
-		out_gsmdecode(0, 0, ts, ctx->fn, data, len);
+		//out_gsmdecode(0, 0, ts, ctx->fn, data, len);
 
 		if (ctx->gsmtap_inst) {
 			/* Dieter: set channel type according to configuration */
@@ -317,8 +317,10 @@ GS_process(GS_CTX *ctx, int ts, int type, const unsigned char *src, int fn, int 
 			/* arfcn, ts, chan_type, ss, fn, signal, snr, data, len */
 			msg = gsmtap_makemsg(0, ts, chan_type, ss,
 					     ctx->fn, 0, 0, data, len);
-			if (msg)
+			if (msg) {
+				out_gsmdecode(0, 0, ts, ctx->fn, msg->data, msg->data_len);
 				gsmtap_sendmsg(ctx->gsmtap_inst, msg);
+			}
 		}
 
 #if 0
@@ -331,19 +333,85 @@ GS_process(GS_CTX *ctx, int ts, int type, const unsigned char *src, int fn, int 
 }
 
 
+static void printTMSI(char *data){
+	int i=0;
+	printf("TMSI: ");
+	for(i=0;i<4;i++){
+	  printf("%02.2x", (unsigned char)*(data+i));
+	}
+	printf("\n");
+	fflush(stdout);
+}
+
+static void printIMSI(char *data){
+	int i=0;
+	printf("IMSI: ");
+	printf("%x", ((unsigned char)*(data+0) & 0xf0) >> 4);
+	for(i=1;i<8;i++){
+	  printf("%x", (unsigned char)*(data+i) & 0x0f);
+          printf("%x", ((unsigned char)*(data+i) & 0xf0) >> 4);
+	}
+	printf("\n");
+	fflush(stdout);
+}
+
+static void parsePaging(char *data, char *end){
+	while (data < end) {
+		if((unsigned char)data[0]==5){	//TMSI
+			data+=2;
+			printTMSI(data);
+			data+=4;
+		}
+		else if((unsigned char)data[0]==8){ //IMSI
+			data++;
+			printIMSI(data);
+			data+=8;
+		}
+		else if((unsigned char)data[0]==23){ //TMSI lub IMSI
+			data++;
+			if((unsigned char)data[0]==5){	//TMSI
+				data+=2;
+				printTMSI(data);
+				data+=4;
+			}
+			else if((unsigned char)data[0]==8){ //IMSI
+				data++;
+				printIMSI(data);
+				data+=8;
+			}
+		}
+		else if((unsigned char)data[0]==1){ //empty
+			data+=2;
+		}
+		else { //2b
+			data++;		
+		}
+	}
+}
+
 /*
  * Output data so that it can be parsed from gsmdecode.
  */
-static void
+static int
 out_gsmdecode(char type, int arfcn, int ts, int fn, char *data, int len)
 {
 	char *end = data + len;
 
-	printf("%6d %d:", (fn + 0), ts);
-
-	/* FIXME: speed this up by first printing into an array */
-	while (data < end)
-		printf(" %02.2x", (unsigned char)*data++);
-	printf("\n");
-	fflush(stdout);
+	switch((unsigned char)data[18]){
+		case 33:
+			//printf("Paging request 1\n");
+			data+=20;
+			parsePaging(data,end);
+			return 0;
+		case 34:
+			//printf("Paging request 2\n");
+			parsePaging(data,end);
+			return 0;
+		case 36:
+			//printf("Paging request 3\n");
+			parsePaging(data,end);
+			return 0;
+		default:
+			return 0;
+	}
 }

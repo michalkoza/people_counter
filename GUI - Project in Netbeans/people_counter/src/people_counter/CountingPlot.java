@@ -5,10 +5,6 @@
 package people_counter;
 
 import java.io.BufferedReader;
-import java.io.FileNotFoundException;
-import java.io.FileReader;
-import java.io.IOException;
-import java.util.ArrayList;
 import java.util.HashSet;
 import java.util.Random;
 import java.util.Vector;
@@ -28,25 +24,31 @@ public class CountingPlot extends Thread {
     private int len = 20;
     private int size = 0;
     private long delay;
-    private static String filename = "alaMaKota.txt";
     private BufferedReader in;
     private HashSet<String> data;
+    private String channel;
     
-    public CountingPlot(long delay){
+    public CountingPlot(String channel, long delay){
         this.delay=delay;
         x = new Vector<Double>();
         y = new Vector<Double>();
         data = new HashSet<String>();
+        this.channel = channel;
     }
     
-    public CountingPlot(){
+    public CountingPlot(String channel){
         this.delay=1000;
         x = new Vector<Double>();
         y = new Vector<Double>();
         data = new HashSet<String>();
+        this.channel = channel;
     }
-    
-    public void add(double value){
+
+    public void addIdentifier(String s){
+        data.add(s);
+    }
+
+    private void add(double value){
         x.add(x.size(),(double)size);
         y.add(y.size(),value);
         if(x.size()>len){
@@ -64,28 +66,15 @@ public class CountingPlot extends Thread {
         return z;
     }
     
-    private void readFromFile(){
-        String s=null;
-        /*data.clear();
-        try {
-            s = in.readLine();
-        } catch (IOException ex) {
-            Logger.getLogger(CountingPlot.class.getName()).log(Level.SEVERE, null, ex);
-        }
-        while(s!=""){
-            data.add(s);
-        }
-        add(data.size());*/
-        add(new Random().nextInt(len));
+    private void readFromReceiver(){
+        add(data.size());
+        data.clear();
     }
     
     @Override
     public void run() {
-        /*try {
-            in = new BufferedReader(new FileReader(filename));
-        } catch (FileNotFoundException ex) {
-            Logger.getLogger(CountingPlot.class.getName()).log(Level.SEVERE, null, ex);
-        }*/
+        ReceiverThread r = new ReceiverThread(this,channel);
+        r.start();
         Plot2DPanel plot = new Plot2DPanel();
         plot.setAxisLabel(0, "Time in [s]");
         plot.setAxisLabel(1, "Number of Identifiers");
@@ -104,8 +93,9 @@ public class CountingPlot extends Thread {
                 Logger.getLogger(CountingPlot.class.getName()).log(Level.SEVERE, null, ex);
             }
             plot.repaint();
-            readFromFile();
+            readFromReceiver();
         }
+        //r.stop();
     }
     
 }
